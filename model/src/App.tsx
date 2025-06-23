@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Play } from 'lucide-react';
+import { Clock, Play, Send } from 'lucide-react';
 
 // --- Constantes ---
 const COMPANION_API_URL = 'http://localhost:8787';
@@ -82,23 +82,16 @@ function App() {
     }
   };
 
-  const handleStartClick = () => {
-    console.log('Clic sur le bouton de démarrage');
-  };
-
-  const handleIABotClick = () => {
+  const toggleAIAssistant = () => {
     setShowAIAssistant(!showAIAssistant);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
-    }
-  };
-
   const handleSendMessage = () => {
-    console.log(`Message envoyé : ${message}`);
-    setMessage('');
+    if (message.trim()) {
+      // Future AI logic here
+      console.log(message);
+      setMessage('');
+    }
   };
 
   // --- Rendu ---
@@ -122,91 +115,66 @@ function App() {
       {error && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-red-800/90 text-white p-3 rounded-lg border-2 border-red-500">
           <strong>Erreur :</strong> {error}
-              <button
-                onClick={handleSendMessage}
-                className="bg-cyan-500 hover:bg-cyan-400 text-white p-3 rounded-lg transition-colors duration-200 shadow-lg"
-              >
-                <Send className="w-5 h-5" />
-              </button>
+        </div>
+      )}
+      
+      {/* Personnage IA cliquable */}
+      <div
+        className="absolute left-4 bottom-20 w-24 h-24 cursor-pointer hover:scale-110 transition-transform"
+        onClick={toggleAIAssistant}
+        style={{
+          backgroundImage: `url('/compass.svg')`,
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'bottom center',
+          visibility: showAIAssistant ? 'hidden' : 'visible'
+        }}
+      ></div>
+
+      {/* Assistant IA flottant */}
+      {showAIAssistant && (
+        <div className="absolute left-4 bottom-20 w-80 h-96 bg-black/70 rounded-lg p-4 flex flex-col text-white border-2 border-gray-600 animate-in slide-in-from-bottom-5">
+           <div className="flex justify-between items-center mb-2">
+             <h3 className="font-bold">MINECRAFTOS-BOT</h3>
+             <button onClick={toggleAIAssistant} className="text-gray-400 hover:text-white">X</button>
+           </div>
+          <div className="flex-grow overflow-y-auto mb-2 pr-2 bg-black/20 p-2 rounded">
+            <div className="text-sm">
+              <span className="font-bold text-cyan-400">[BOT]</span> Salut ! Comment puis-je t'aider ?
             </div>
           </div>
-
-          {/* Minecraft Character - Now on same line */}
-          <div className="flex-shrink-0">
-            <div 
-              className="w-32 h-40 bg-contain bg-no-repeat bg-center transform hover:scale-105 transition-transform duration-300"
-              style={{
-                backgroundImage: `url('/body.png')`
-              }}
-            ></div>
+          <div className="flex">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              className="flex-grow bg-gray-800 border border-gray-600 rounded-l-md p-2 focus:outline-none focus:border-yellow-500"
+              placeholder="Votre message..."
+            />
+            <button
+              onClick={handleSendMessage}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white p-2 rounded-r-md"
+            >
+              <Send size={20} />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Taskbar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-sm h-16 flex items-center justify-between px-6 border-t border-slate-700">
-        {/* Start Menu with Custom Start Button */}
+      {/* Barre des tâches */}
+      <footer className="absolute bottom-0 left-0 right-0 h-16 bg-black/80 flex items-center justify-between px-4 border-t-2 border-gray-700">
         <div className="flex items-center space-x-4">
-          {/* Custom Start Button */}
-          <div 
-            className="flex items-center group cursor-pointer"
-            onClick={handleStartClick}
-          >
-            <div className="relative">
-              {/* Main Start Button */}
-              <div className="w-12 h-12 rounded-lg shadow-lg hover:scale-110 transition-all duration-300 transform hover:rotate-3 relative overflow-hidden border-2 border-green-600/50">
-                <div 
-                  className="w-full h-full bg-contain bg-center bg-no-repeat"
-                  style={{
-                    backgroundImage: `url('/ChatGPT Image 22 juin 2025, 15_27_29.png')`
-                  }}
-                />
-                {/* Glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-br from-green-400/20 to-green-600/20 rounded-lg"></div>
-                {/* Shine effect */}
-                <div className="absolute top-1 left-1 w-2 h-2 bg-white/30 rounded-full blur-sm"></div>
-              </div>
-              
-              {/* Outer glow */}
-              <div className="absolute -inset-1 w-14 h-14 bg-green-400/10 rounded-xl blur-md group-hover:bg-green-400/20 transition-all duration-300"></div>
-              
-              {/* Play icon indicator */}
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-lg border border-green-400 group-hover:scale-110 transition-transform duration-200">
-                <Play className="w-2 h-2 text-white fill-white" />
-              </div>
-            </div>
-          </div>
-
-          {/* IA-BOT Button - Now clickable to toggle assistant */}
-          <div 
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors cursor-pointer ${
-              showAIAssistant 
-                ? 'bg-cyan-600 hover:bg-cyan-500' 
-                : 'bg-slate-800 hover:bg-slate-700'
-            }`}
-            onClick={handleIABotClick}
-          >
-            <Package className={`w-6 h-6 ${showAIAssistant ? 'text-white' : 'text-green-400'}`} />
-            <span className="text-white font-bold text-lg">IA-BOT</span>
-            {showAIAssistant && (
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            )}
-          </div>
-
-          {/* Chat Icon */}
-          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center cursor-pointer hover:bg-green-400 transition-colors">
-            <MessageSquare className="w-5 h-5 text-white" />
-          </div>
+          <button className="w-12 h-12 bg-gray-700 flex items-center justify-center rounded-md border-2 border-gray-500 hover:border-yellow-400">
+            <Play size={28} className="text-white" />
+          </button>
         </div>
 
-        {/* System Tray */}
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 text-white">
-            <Clock className="w-5 h-5 text-gray-400" />
-            <span className="font-mono text-lg">{formatTime(currentTime)}</span>
-          </div>
+        <div className="flex items-center space-x-2 text-white bg-gray-900/80 px-3 py-1 rounded-md border border-gray-600">
+          <Clock size={20} />
+          <span className="font-mono text-lg">{formatTime(currentTime)}</span>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

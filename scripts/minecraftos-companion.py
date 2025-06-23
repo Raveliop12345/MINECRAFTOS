@@ -5,6 +5,7 @@ import subprocess
 import json
 import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import google.generativeai as genai
 
 # --- Configuration du Logging ---
 logging.basicConfig(
@@ -17,8 +18,17 @@ logging.basicConfig(
 )
 
 # --- Configuration des Applications ---
-# Le chemin vers le dossier des icônes SVG
-ICONS_DIR = "/usr/share/icons/minecraftos/SVG"
+# Déterminer le chemin des icônes en fonction de l'environnement
+DEV_ICON_DIR = os.path.join(os.path.dirname(__file__), '..', 'Minecraft-Icons', 'SVG')
+PROD_ICON_DIR = '/usr/share/icons/minecraftos/SVG'
+
+if os.path.exists(DEV_ICON_DIR):
+    ICONS_DIR = DEV_ICON_DIR
+    logging.info(f"Utilisation du répertoire d'icônes de développement : {ICONS_DIR}")
+else:
+    ICONS_DIR = PROD_ICON_DIR
+    logging.info(f"Utilisation du répertoire d'icônes de production : {ICONS_DIR}")
+
 # Définition des applications de bureau
 DESKTOP_APPS = {
     "files": {
@@ -37,6 +47,38 @@ DESKTOP_APPS = {
         "command": "python3 /usr/local/bin/minecraftos_scripts/minecraftos-store.py"
     }
 }
+
+# --- Configuration de l'API Gemini ---
+def load_gemini_config():
+    config_path = os.path.expanduser("~/.config/minecraftos/bot_config.json")
+    if not os.path.exists(config_path):
+        logging.error(f"Fichier de configuration du bot introuvable à {config_path}")
+        return None
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        api_key = config.get("GEMINI_API_KEY")
+        if not api_key or api_key == "YOUR_API_KEY_HERE":
+            logging.error("Clé API Gemini non trouvée ou non configurée dans le fichier.")
+            return None
+        return api_key
+    except Exception as e:
+        logging.error(f"Erreur lors de la lecture du fichier de configuration : {e}")
+        return None
+
+API_KEY = load_gemini_config()
+MODEL = None
+if API_KEY:
+    try:
+        genai.configure(api_key=API_KEY)
+        MODEL = genai.GenerativeModel('gemini-pro')
+        logging.info("API Gemini configurée avec succès.")
+    except Exception as e:
+        logging.error(f"Échec de l'initialisation du modèle Gemini : {e}")
+        API_KEY = None # Désactiver si l'initialisation échoue
+else:
+    logging.warning("Clé API Gemini non configurée. La fonctionnalité de chat sera désactivée.")
+
 
 class CompanionRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
@@ -104,6 +146,36 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 logging.error(f"Erreur lors du lancement de l'application : {e}")
                 self._send_json_response(500, {"error": f"Erreur interne du serveur : {e}"})
+        
+        elif self.path == '/chat':
+            if not API_KEY or not MODEL:
+                self._send_json_response(503, {"error": "Le service de chat n'est pas configuré correctement sur le serveur."})
+                return
+            try:
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                data = json.loads(post_data)
+                user_message = data.get('message')
+
+                if not user_message:
+                    self._send_json_response(400, {"error": "Message manquant."})
+                    return
+                
+                logging.info(f"Message reçu pour le chat : '{user_message}'")
+                
+                response = MODEL.generate_content(user_message)
+                
+                bot_response = response.text
+                logging.info(f"Réponse de Gemini : '{bot_response}'")
+
+                self._send_json_response(200, {"reply": bot_response})
+
+            except json.JSONDecodeError:
+                self._send_json_response(400, {"error": "Données JSON invalides."})
+            except Exception as e:
+                logging.error(f"Erreur lors de l'interaction avec l'API Gemini : {e}")
+                self._send_json_response(500, {"error": f"Erreur interne du serveur lors du chat : {e}"})
+        
         else:
             self._send_json_response(404, {"error": "Endpoint non trouvé"})
 
