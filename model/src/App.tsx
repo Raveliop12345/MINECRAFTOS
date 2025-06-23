@@ -114,7 +114,7 @@ const BootScreen = () => (
   <div className="w-screen h-screen bg-[#0000a8] flex flex-col items-center justify-center font-minecraft text-white">
     <img src="/start_logo.png" alt="Logo" className="w-48 h-48 mb-8" style={{ imageRendering: 'pixelated' }} />
     <div className="w-1/3 bg-gray-700 border-2 border-gray-500 p-1">
-      <div className="h-4 bg-green-500 animate-pulse" style={{ width: `100%`, animation: 'progressBar 3s linear forwards' }}></div>
+      <div className="h-4 bg-green-500 animate-pulse" style={{ width: `100%`, animation: 'progressBar 15s linear forwards' }}></div>
     </div>
     <p className="mt-4 text-lg">Démarrage de MinecraftOS...</p>
   </div>
@@ -122,10 +122,6 @@ const BootScreen = () => (
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-
-  if (isLoading) {
-    return <BootScreen />;
-  }
   const [currentTime, setCurrentTime] = useState(new Date());
   const [desktopIcons, setDesktopIcons] = useState<DesktopIcon[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +131,7 @@ function App() {
   const [openWindows, setOpenWindows] = useState<WindowState[]>([]);
 
   useEffect(() => {
-    const bootTimer = setTimeout(() => setIsLoading(false), 3000);
+    const bootTimer = setTimeout(() => setIsLoading(false), 15000);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => {
       clearTimeout(bootTimer);
@@ -199,6 +195,10 @@ function App() {
       <span className="text-sm font-bold">{icon.name}</span>
     </div>
   );
+
+  if (isLoading) {
+    return <BootScreen />;
+  }
 
   return (
     <div className="w-screen h-screen relative overflow-hidden font-minecraft" style={{ backgroundImage: `url('/minecraft_wallpaper.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
