@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Play, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
+import Store from './Store';
 
 // --- Constantes ---
 const COMPANION_API_URL = 'http://localhost:8787';
@@ -11,6 +12,11 @@ interface DesktopIcon {
   icon: string;
 }
 
+interface ChatMessage {
+  sender: 'user' | 'bot';
+  text: string;
+}
+
 // --- Composant d'icône ---
 const AppIcon: React.FC<{ icon: DesktopIcon; onDoubleClick: (id: string) => void }> = ({ icon, onDoubleClick }) => (
   <div 
@@ -18,7 +24,7 @@ const AppIcon: React.FC<{ icon: DesktopIcon; onDoubleClick: (id: string) => void
     onDoubleClick={() => onDoubleClick(icon.id)}
   >
     <div className="w-16 h-16 bg-gray-700/50 flex items-center justify-center rounded-lg border-2 border-gray-500 hover:border-yellow-400 transition-all duration-150">
-      <img src={icon.icon} alt={icon.name} className="w-12 h-12" />
+      <img src={icon.icon} alt={icon.name} className="w-12 h-12" style={{ imageRendering: 'pixelated' }} />
     </div>
     <span className="mt-1 text-sm break-words">{icon.name}</span>
   </div>
@@ -31,50 +37,50 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [isBotTyping, setIsBotTyping] = useState(false);
+  const [showStore, setShowStore] = useState(false);
+  const [conversation, setConversation] = useState<ChatMessage[]>([
+    { sender: 'bot', text: "Salutations, ARCHLORD ! Prêt pour une nouvelle aventure ?" }
+  ]);
 
   // --- Effets ---
   useEffect(() => {
-    // Horloge
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    // Chargement des icônes du bureau
     const fetchDesktopIcons = async () => {
       try {
         const response = await fetch(`${COMPANION_API_URL}/desktop-icons`);
-        if (!response.ok) {
-          throw new Error(`Le serveur a répondu avec le statut : ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Le serveur a répondu avec le statut : ${response.status}`);
         const data: DesktopIcon[] = await response.json();
-        setDesktopIcons(data);
+        // Préfixer les URLs relatives des icônes avec l'URL de base de l'API
+        const fullPathIcons = data.map(icon => ({...icon, icon: `${COMPANION_API_URL}${icon.icon}`}));
+        setDesktopIcons(fullPathIcons);
       } catch (err) {
         console.error("Erreur lors de la récupération des icônes:", err);
-        setError("Impossible de charger les icônes du bureau. Le serveur compagnon est-il lancé ?");
+        setError("Impossible de charger les icônes. Le compagnon est-il lancé ?");
       }
     };
 
     fetchDesktopIcons();
-
     return () => clearInterval(timer);
   }, []);
 
   // --- Fonctions ---
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
+  const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   const handleIconDoubleClick = async (appId: string) => {
+    if (appId === 'store') {
+      setShowStore(true);
+      return;
+    }
     console.log(`Lancement de l'application : ${appId}`);
     try {
       const response = await fetch(`${COMPANION_API_URL}/launch-app`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app_id: appId }),
       });
-      if (!response.ok) {
-        throw new Error(`Erreur lors du lancement de l'application.`);
-      }
+      if (!response.ok) throw new Error(`Erreur lors du lancement de l'application.`);
       console.log(`App ${appId} lancée avec succès.`);
     } catch (err) {
       console.error("Erreur de lancement:", err);
@@ -82,22 +88,47 @@ function App() {
     }
   };
 
-  const toggleAIAssistant = () => {
-    setShowAIAssistant(!showAIAssistant);
-  };
+  const toggleAIAssistant = () => setShowAIAssistant(!showAIAssistant);
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      // Future AI logic here
-      console.log(message);
-      setMessage('');
+  const handleSendMessage = async () => {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
+
+    const newUserMessage: ChatMessage = { sender: 'user', text: trimmedMessage };
+    setConversation(prev => [...prev, newUserMessage]);
+    setMessage('');
+    setIsBotTyping(true);
+
+    try {
+      const response = await fetch(`${COMPANION_API_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmedMessage }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erreur serveur: ${response.status}`);
+      }
+      const data = await response.json();
+      const botReply: ChatMessage = { sender: 'bot', text: data.reply };
+      setConversation(prev => [...prev, botReply]);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
+      const botError: ChatMessage = { sender: 'bot', text: `Désolé, une erreur est survenue : ${errorMessage}` };
+      setConversation(prev => [...prev, botError]);
+    } finally {
+      setIsBotTyping(false);
     }
   };
 
   // --- Rendu ---
+  if (showStore) {
+    return <Store onClose={() => setShowStore(false)} />;
+  }
+
   return (
     <div
-      className="min-h-screen relative overflow-hidden"
+      className="min-h-screen relative overflow-hidden font-minecraft"
       style={{
         backgroundImage: `url('/minecraft_wallpaper.png')`,
         backgroundSize: 'cover',
@@ -123,7 +154,7 @@ function App() {
         className="absolute left-4 bottom-20 w-24 h-24 cursor-pointer hover:scale-110 transition-transform"
         onClick={toggleAIAssistant}
         style={{
-          backgroundImage: `url('/compass.svg')`,
+          backgroundImage: `url('/bot_skin.png')`,
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'bottom center',
@@ -139,9 +170,41 @@ function App() {
              <button onClick={toggleAIAssistant} className="text-gray-400 hover:text-white">X</button>
            </div>
           <div className="flex-grow overflow-y-auto mb-2 pr-2 bg-black/20 p-2 rounded">
-            <div className="text-sm">
-              <span className="font-bold text-cyan-400">[BOT]</span> Salut ! Comment puis-je t'aider ?
-            </div>
+            {conversation.map((chat, index) => (
+              <div key={index} className={`w-full flex items-end gap-2 mb-2 ${chat.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {/* Pour le bot, l'avatar est à gauche et le texte à droite */}
+                {chat.sender === 'bot' && (
+                  <>
+                    <img
+                      src="/bot_skin.png"
+                      alt="bot avatar"
+                      className="w-10 h-10 rounded-lg bg-gray-800 border-2 border-cyan-400 self-start"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                    <div className={`inline-block p-2 rounded-lg max-w-[80%] text-left bg-gray-700 text-white`}>
+                      <span className={`font-bold block text-xs mb-1 text-cyan-400`}>
+                        MINECRAFTOS-BOT
+                      </span>
+                      <p className="whitespace-pre-wrap text-sm">{chat.text}</p>
+                    </div>
+                  </>
+                )}
+                {/* Pour l'utilisateur, le texte est seul et à droite */}
+                {chat.sender === 'user' && (
+                  <div className={`inline-block p-2 rounded-lg max-w-[80%] text-left bg-yellow-600 text-black`}>
+                    <span className={`font-bold block text-xs mb-1 text-gray-800`}>
+                      VOUS
+                    </span>
+                    <p className="whitespace-pre-wrap text-sm">{chat.text}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+            {isBotTyping && (
+              <div className="text-sm text-gray-400 p-2">
+                <span className="font-bold text-cyan-400">BOT</span> est en train d'écrire...
+              </div>
+            )}
           </div>
           <div className="flex">
             <input
@@ -149,13 +212,10 @@ function App() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              className="flex-grow bg-gray-800 border border-gray-600 rounded-l-md p-2 focus:outline-none focus:border-yellow-500"
-              placeholder="Votre message..."
+              placeholder="Envoyer un message..."
+              className="flex-grow bg-gray-800 border-2 border-gray-600 rounded-l-md p-2 focus:outline-none focus:border-yellow-400"
             />
-            <button
-              onClick={handleSendMessage}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white p-2 rounded-r-md"
-            >
+            <button onClick={handleSendMessage} className="bg-yellow-500 text-black p-2 rounded-r-md hover:bg-yellow-400">
               <Send size={20} />
             </button>
           </div>
@@ -165,14 +225,13 @@ function App() {
       {/* Barre des tâches */}
       <footer className="absolute bottom-0 left-0 right-0 h-16 bg-black/80 flex items-center justify-between px-4 border-t-2 border-gray-700">
         <div className="flex items-center space-x-4">
-          <button className="w-12 h-12 bg-gray-700 flex items-center justify-center rounded-md border-2 border-gray-500 hover:border-yellow-400">
-            <Play size={28} className="text-white" />
+          <button className="w-12 h-12 bg-gray-700 flex items-center justify-center rounded-md border-2 border-gray-500 hover:border-yellow-400 p-1">
+            <img src="/ChatGPT Image 22 juin 2025, 15_27_29.png" alt="Start Menu" className="w-full h-full object-contain" />
           </button>
         </div>
 
-        <div className="flex items-center space-x-2 text-white bg-gray-900/80 px-3 py-1 rounded-md border border-gray-600">
-          <Clock size={20} />
-          <span className="font-mono text-lg">{formatTime(currentTime)}</span>
+        <div className="text-white font-bold text-lg">
+          <span>{formatTime(currentTime)}</span>
         </div>
       </footer>
     </div>

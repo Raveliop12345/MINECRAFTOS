@@ -41,6 +41,11 @@ DESKTOP_APPS = {
         "icon": "terminal.svg",
         "command": "lxterminal"
     },
+    "file_manager": {
+        "name": "Gestionnaire de Fichiers",
+        "icon": "file-manager.svg",
+        "command": "pcmanfm"
+    },
     "store": {
         "name": "Store",
         "icon": "store.svg",
@@ -48,9 +53,39 @@ DESKTOP_APPS = {
     }
 }
 
+# --- Données du Store ---
+STORE_ITEMS = [
+    {
+        "id": "code_editor",
+        "name": "Éditeur de Code",
+        "description": "Un éditeur de texte simple pour écrire vos scripts.",
+        "author": "Mojang Studios",
+        "icon": "/store_icons/code_editor.svg",
+        "price": "Gratuit"
+    },
+    {
+        "id": "media_player",
+        "name": "Lecteur Multimédia",
+        "description": "Écoutez vos disques de musique préférés.",
+        "author": "C418",
+        "icon": "/store_icons/media_player.svg",
+        "price": "Gratuit"
+    },
+    {
+        "id": "map_viewer",
+        "name": "Visionneuse de Carte",
+        "description": "Explorez le monde que vous avez découvert.",
+        "author": "Cartographer Villager",
+        "icon": "/store_icons/map_viewer.svg",
+        "price": "Gratuit"
+    }
+]
+
 # --- Configuration de l'API Gemini ---
 def load_gemini_config():
-    config_path = os.path.expanduser("~/.config/minecraftos/bot_config.json")
+    # Le chemin est maintenant relatif au script lui-même
+    script_dir = os.path.dirname(__file__)
+    config_path = os.path.join(script_dir, '.minecraftos_bot_config.json')
     if not os.path.exists(config_path):
         logging.error(f"Fichier de configuration du bot introuvable à {config_path}")
         return None
@@ -71,7 +106,7 @@ MODEL = None
 if API_KEY:
     try:
         genai.configure(api_key=API_KEY)
-        MODEL = genai.GenerativeModel('gemini-pro')
+        MODEL = genai.GenerativeModel('gemini-1.5-flash-latest')
         logging.info("API Gemini configurée avec succès.")
     except Exception as e:
         logging.error(f"Échec de l'initialisation du modèle Gemini : {e}")
@@ -104,20 +139,37 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
                 # Lister les fichiers SVG dans le dossier d'icônes
                 available_icons = [f for f in os.listdir(ICONS_DIR) if f.endswith('.svg')]
                 
-                # Filtrer les applications pour n'inclure que celles dont l'icône existe
+                # Servir les icônes via des URLs relatives
                 apps_with_icons = []
                 for app_id, app_data in DESKTOP_APPS.items():
                     if app_data['icon'] in available_icons:
                         apps_with_icons.append({
                             "id": app_id,
                             "name": app_data['name'],
-                            "icon": f"file://{os.path.join(ICONS_DIR, app_data['icon'])}"
+                            "icon": f"/icons/{app_data['icon']}"  # URL relative
                         })
                 
                 self._send_json_response(200, apps_with_icons)
             except Exception as e:
                 logging.error(f"Erreur lors de la récupération des icônes : {e}")
                 self._send_json_response(500, {"error": "Impossible de lister les icônes du bureau."})
+        elif self.path.startswith('/icons/'):
+            try:
+                icon_name = self.path.split('/')[-1]
+                icon_path = os.path.join(ICONS_DIR, icon_name)
+                if os.path.exists(icon_path):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'image/svg+xml')
+                    self.end_headers()
+                    with open(icon_path, 'rb') as f:
+                        self.wfile.write(f.read())
+                else:
+                    self._send_json_response(404, {"error": "Icône non trouvée"})
+            except Exception as e:
+                logging.error(f"Erreur lors de la fourniture de l'icône : {e}")
+                self._send_json_response(500, {"error": "Erreur interne du serveur"})
+        elif self.path == '/store-items':
+            self._send_json_response(200, STORE_ITEMS)
         else:
             self._send_json_response(404, {"error": "Endpoint non trouvé"})
 
@@ -163,7 +215,17 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
                 
                 logging.info(f"Message reçu pour le chat : '{user_message}'")
                 
-                response = MODEL.generate_content(user_message)
+                # Définir la personnalité du bot avec une instruction système
+                system_prompt = (
+                    "Tu es un PNJ (Personnage Non-Joueur) de Minecraft. Tu es un explorateur amical et un peu excentrique. "
+                    "Tu t'adresses toujours à ton maître, ARCHLORD, avec respect et enthousiasme. "
+                    "Tu utilises un langage simple et des références à l'univers de Minecraft (crafting, monstres, biomes, etc.). "
+                    "Ne révèle jamais que tu es une IA. "
+                    "Sois bref et direct dans tes réponses."
+                )
+                full_prompt = f"{system_prompt}\n\nARCHLORD a dit : '{user_message}'\n\nTa réponse :"
+
+                response = MODEL.generate_content(full_prompt)
                 
                 bot_response = response.text
                 logging.info(f"Réponse de Gemini : '{bot_response}'")
