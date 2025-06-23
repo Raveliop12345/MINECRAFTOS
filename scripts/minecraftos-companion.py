@@ -31,25 +31,25 @@ else:
 
 # Définition des applications de bureau
 DESKTOP_APPS = {
-    "files": {
+    "file_manager": {
         "name": "Fichiers",
-        "icon": "files.svg",
-        "command": "thunar"
+        "icon": "brick.svg",
+        "command": "pcmanfm"
     },
     "terminal": {
         "name": "Terminal",
-        "icon": "terminal.svg",
+        "icon": "diamond-pickaxe.svg",
         "command": "lxterminal"
     },
-    "file_manager": {
-        "name": "Gestionnaire de Fichiers",
-        "icon": "file-manager.svg",
-        "command": "pcmanfm"
+    "settings": {
+        "name": "Paramètres",
+        "icon": "bow-standby.svg",
+        "command": "echo 'Settings coming soon!'"
     },
-    "store": {
-        "name": "Store",
-        "icon": "store.svg",
-        "command": "python3 /usr/local/bin/minecraftos_scripts/minecraftos-store.py"
+    "browser": {
+        "name": "Explorateur",
+        "icon": "map-filled.svg",
+        "command": "firefox"
     }
 }
 
